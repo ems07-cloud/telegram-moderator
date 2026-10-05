@@ -1,100 +1,92 @@
-![origin_github_banner](https://user-images.githubusercontent.com/673455/37314301-f8db9a90-2618-11e8-8fee-b44f38febf38.png)
+# Бот-модератор для Telegram-групп
 
-Head to https://www.originprotocol.com/developers to learn more about what we're building and how to get involved.
+Чистит группу от спама: удаляет и банит по шаблонам, ловит подмену букв
+(«з@работок», «kазино» с латинской k), проверяет подписи к фото, банит
+спам-аккаунты по имени прямо при входе, просит новичков нажать «Я человек»,
+не даёт новичкам ссылки в первые сутки, глушит флуд и присылает отчёт о каждом
+действии в закрытый чат админов. Правила — в одном TOML-файле, без программирования.
 
-# Telegram Bot
+> Это возрождение заброшенного проекта
+> [OriginProtocol/telegram-moderator](https://github.com/OriginProtocol/telegram-moderator)
+> (115★, последние изменения — январь 2022). Оригинал написан на
+> python-telegram-bot 9 образца 2018 года, а часть его зависимостей
+> (`googletrans`) давно не работает. Код переписан на aiogram 3, идея и
+> лицензия MIT сохранены.
 
-- Deletes messages matching specified patterns
-- Bans users for posting messages matching specified patterns
-- Bans users with usernames matching specified patterns
-- Records logs of conversations
-- Logs an English translation of any foreign languages using Google Translate
-- Uses textblob for basic sentiment analysis of both polarity and subjectivity
+Python 3.11+ · aiogram 3 · SQLite · pytest · Docker
 
-## Installation
+| Группа | Отчёты админам |
+|---|---|
+| ![Группа](docs/screenshots/01-gruppa.png) | ![Отчёты](docs/screenshots/02-otchety.png) |
 
-- Required: Python 3.x, pip, PostgreSQL
-- Create virtualenv
-- Clone this repo
-- `pip install --upgrade -r requirements.txt`
+## Что умеет
 
-## Database setup
+- **Шаблоны бана и скрытия** — регулярные выражения: сообщение удаляется, а при
+  «бановом» шаблоне автор получает бан.
+- **Защита от подмены букв** — перед проверкой текст нормализуется: латинские
+  двойники ↔ кириллица, `@`→а, `0`→о, невидимые символы убираются.
+- **Подписи к фото и видео** проверяются так же, как текст.
+- **Бан по имени и нику** — сразу при входе в группу, а не когда спамер напишет.
+- **Капча для новичков**: пока не нажмёт «Я человек», писать не может; не нажал
+  вовремя — выгоняется (вернуться можно). Кнопка работает только для «своего» человека.
+- **Новичкам без ссылок** первые N часов.
+- **Антифлуд**: больше N сообщений за M секунд — мут на заданное время.
+- **Пересланные сообщения и вложения** — по правилам (например, голосовые нельзя, фото можно).
+- **Админы не трогаются**, их список кешируется на 5 минут.
+- **Отчёт в чат админов** о каждом действии и `/modstats` — сводка за сутки.
 
-- Store database URL in environment variable.
+![Правила](docs/screenshots/03-pravila.png)
 
-```
-export TELEGRAM_BOT_POSTGRES_URL="postgresql://<user>:<password>@localhost:5432/<databasename>"
-```
+## Что изменено по сравнению с оригиналом
 
-- Run: `python model.py` to setup the DB tables.
+**Переписано под современный стек:** python-telegram-bot 9 → aiogram 3,
+PostgreSQL → SQLite по умолчанию, правила из десятка переменных окружения → один
+файл `rules.toml`.
 
-## Setup
+**Исправлены ошибки оригинала**
+- в отчётах и журнале вместо текста печатались байты `b'\xd0…'` — пережиток Python 2;
+- спам-аккаунт с запрещённым именем банился, только когда что-то напишет;
+- после удаления пересланного сообщения проверки не останавливались и
+  пытались удалить его повторно;
+- подписи к фото и видео не проверялись вовсе;
+- подмена похожих букв была только в планах (TODO в коде).
 
-- Create a Telegram bot by talking to `@BotFather` : https://core.telegram.org/bots#creating-a-new-bot
-- Use `/setprivacy` with `@BotFather` in order to allow it to see all messages in a group.
-- Store your Telegram Bot Token in environment variable `TELEGRAM_BOT_TOKEN`. It will look similar to this:
+**Убрано**
+- перевод сообщений через `googletrans` — библиотека не работает;
+- оценка тональности через textblob — к модерации не относится;
+- команда `/price` для криптотокена компании-автора;
+- запись всей переписки группы в базу. Теперь журналируются только действия
+  модератора — меньше лишних персональных данных.
 
-```
-export TELEGRAM_BOT_TOKEN="4813829027:ADJFKAf0plousH2EZ2jBfxxRWFld3oK34ya"
-```
+**Добавлено:** капча, ограничение ссылок для новичков, антифлуд,
+`/modstats`, Docker, 26 тестов.
 
-- Create your Telegram group.
-- Add your bot to the group like so: https://stackoverflow.com/questions/37338101/how-to-add-a-bot-to-a-telegram-group
-- Make your bot an admin in the group
+## Запуск
 
-## Configuration with ENV vars
-
-- `MESSAGE_BAN_PATTERNS` : **REQUIRED** Regex pattern. Messages matching this will ban the user.
-- `MESSAGE_HIDE_PATTERNS` : **REQUIRED** Regex pattern. Messages matching this will be hidden/deleted
-- `NAME_BAN_PATTERNS` **REQUIRED** Regex pattern. Users with usernames or first/last names maching this will be banned from the group.
-- `CHAT_IDS` : **REQUIRED**. Comma-seperated list of IDs of chat(s) that should be monitored. To find out the ID of a chat, add the bot to a chat and type some messages there. The bot log will report an error that it got messages `from chat_id not being monitored: XXX` where XXX is the chat ID. e.g. `-240532994,-150531679`
-- `TELEGRAM_BOT_TOKEN` : **REQUIRED**. Token for bot to control. e.g. `4813829027:ADJFKAf0plousH2EZ2jBfxxRWFld3oK34ya`
-- `TELEGRAM_BOT_POSTGRES_URL` : **REQUIRED**. URI for postgres instance to log activity to. e.g. `postgresql://localhost/postgres`
-- `DEBUG` : If set to anything except `false`, will put bot into debug mode. This means that all actions will be logged into the chat itself, and more things will be logged.
-- `ADMIN_EXEMPT` : If set to anything except `false`, admin users will be exempt from monitoring. Reccomended to be set, but useful to turn off for debugging.
-- `NOTIFY_CHAT` : ID of chat to report actions. Can be useful if you have an admin-only chat where you want to monitor the bot's activity. E.g. `-140532994`
-- `CMC_API_KEY`: If you want the `/price` bot command to work, make sure to set a CoinMarketcap API key
-
-## Download the corpus for Textblob
-
-For sentiment analysis to work, you'll need to download the latest corpus file for textblob. You can do this by running:
-
-```
-python -m textblob.download_corpora
-```
-
-If you're running the bot on Heroku, set an environment variable named `NLTK_DATA` to `/app/nltk_data` by running:
-
-```
-heroku config:set NLTK_DATA='/app/nltk_data'
-```
-
-## Message ban patterns
-
-Sample bash file to set `MESSAGE_BAN_PATTERNS`:
-
-```
-read -r -d '' MESSAGE_BAN_PATTERNS << 'EOF'
-# ETH Address
-# e.g. F8C8405e85Cfe42551DEfeB2a4548A33bb3DF840
-[0-9a-fA-F]{40,40}
-# BTC Address
-# e.g. 13qt9rCA2CQLZedmUuDiPkwdcAJLsuTvLm
-|[0-9a-fA-Z]{34,34}
-EOF
+```bash
+pip install -r requirements.txt
+cp rules.example.toml rules.toml      # и поправьте под свой чат
+BOT_TOKEN=123:abc python -m moderator
 ```
 
-## Attachments
+Бота нужно сделать админом группы с правами удалять сообщения и блокировать
+участников, а в @BotFather выключить privacy mode (`/setprivacy` → Disable),
+иначе бот не видит обычные сообщения.
 
-By default, any attachments other than images or animations will cause the message to be hidden.
+Docker: `docker build -t moderator . && docker run -d -e BOT_TOKEN=... -v mod:/data moderator`
 
-## Running
+## Тесты
 
-### Locally
+```bash
+pytest -v
+```
 
-- Run: `python bot.py` to start logger
-- Messages will be displayed on `stdout` as they are logged.
+Все правила, подмена букв, флуд, капча (прошёл, нажал чужой, не успел),
+кеш админов, отчёты и сквозные тесты через настоящий `Dispatcher` aiogram с
+подменённой сетью Telegram — 26 тестов.
 
-### On Heroku
+![Тесты](docs/screenshots/04-testy.png)
 
-- You must enable the worker on Heroku app dashboard. (By default it is off.)
+## Лицензия
+
+MIT, как у оригинала. Оригинальный проект — [Origin Protocol](https://github.com/OriginProtocol).

@@ -1,27 +1,9 @@
-# Never commit config data
-config.cnf
-
-# Env vars for "real" installation
-env.sh
-
-# Byte-compiled / optimized / DLL files
+.venv/
+__pycache__/
 *.py[cod]
-
-# Distribution / packaging
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
-
-origin-telegram-logger-bot
+.pytest_cache/
+*.sqlite
+rules.toml
+.env
+.idea/
+.vscode/
